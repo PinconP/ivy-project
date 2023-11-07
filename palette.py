@@ -296,7 +296,7 @@ command_input = ""
     pygame.display.update()
 """
 
-"""while True:
+while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
@@ -347,7 +347,7 @@ command_input = ""
         pass
 
     pygame.display.update()
-"""
+
 
 last_time_checked = 0
 check_interval = 1  # in seconds
@@ -363,7 +363,7 @@ def get_command():
     return "draw rectangle here"
 
 
-while True:
+"""while True:
     current_time = time.time()
 
     if current_time - last_time_checked > check_interval:
@@ -415,3 +415,4 @@ while True:
         pass
 
     pygame.display.update()
+"""
