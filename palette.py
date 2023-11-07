@@ -354,6 +354,11 @@ check_interval = 1  # in seconds
 
 
 def get_command():
+    """Gets the command from the user
+
+    Returns:
+        string: string depicting the form to be drawn with the color
+    """
     time.sleep(3)
     return "draw rectangle here"
 
