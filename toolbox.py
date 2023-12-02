@@ -176,6 +176,15 @@ def path_distance(points1, points2):
     return d
 
 
+# Capture points when the mouse is pressed and dragged
+
+
+def on_drag(event):
+    x, y = event.x, event.y
+    canvas.create_oval(x, y, x+5, y+5, fill='black')
+    current_stroke.append(Point(x, y))
+
+
 # End the current stroke when the mouse is released
 
 
@@ -185,6 +194,30 @@ def on_release(event):
         strokes.append(current_stroke)
         current_stroke = []
 
+
+# Clear the canvas and strokes
+
+
+def clear_canvas():
+    global strokes
+    canvas.delete("all")
+    strokes = []
+
+# Save a new gesture template
+
+
+def save_template():
+    global strokes, templates
+    if not strokes:
+        return
+    name = simpledialog.askstring("Input", "Enter gesture name:")
+    if name:
+        points = [point for stroke in strokes for point in stroke]
+        points = resample(points)
+        points = scale(points)
+        points = translate_to_origin(points)
+        templates.append(Gesture(name, points))
+    clear_canvas()
 
 # Recognize a gesture based on the current strokes
 

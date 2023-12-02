@@ -3,13 +3,22 @@ import math
 from abc import ABC, abstractmethod
 from enum import Enum
 import time
+from matplotlib import colors
+from googletrans import Translator
+import random
 
+
+from ivy.ivy import IvyServer
+import math
+from typing import List
 
 class FSM(Enum):
     INITIAL = "Etat Initial"
     AFFICHER_FORMES = "Afficher Formes"
     DEPLACER_FORMES_SELECTION = "Deplacer Formes Selection"
     DEPLACER_FORMES_DESTINATION = "Deplacer Formes Destination"
+    SUPPRIMER_FORME = "Supprimer Forme"
+    MODIFIER_FORME = "Modifier formes"
 
 
 class Forme(ABC):
@@ -41,7 +50,7 @@ class Forme(ABC):
         dx = B[0] - A[0]
         dy = B[1] - A[1]
         return math.sqrt(dx ** 2 + dy ** 2)
-
+    
     @abstractmethod
     def perimetre(self):
         pass
@@ -50,18 +59,20 @@ class Forme(ABC):
     def aire(self):
         pass
 
-
 class Cercle(Forme):
-    def __init__(self, x, y):
+    def __init__(self, win,  x, y, color = (127, 127, 127)):
         super().__init__(x, y)
         self.rayon = 80
+        self.win = win 
+        self.set_color(color)
+
 
     def update(self):
-        pygame.draw.circle(win, self.color, self.origin, self.rayon)
+        pygame.draw.circle(self.win, self.color, self.origin, self.rayon)
 
     def is_clicked(self, pos):
-        dx = pos[0] - self.x
-        dy = pos[1] - self.y
+        dx = pos[0] - self.origin[0] ######################################
+        dy = pos[1] - self.origin[1] ######################################
         distance = math.sqrt(dx ** 2 + dy ** 2)
 
         return distance <= self.rayon // 2
@@ -72,19 +83,20 @@ class Cercle(Forme):
     def aire(self):
         return math.pi * self.rayon ** 2
 
-
 class Rectangle(Forme):
-    def __init__(self, x, y):
+    def __init__(self, win, x, y, color = (127, 127, 127)):
         super().__init__(x, y)
         self.longueur = 60
+        self.win = win
+        self.set_color(color)
 
     def update(self):
-        pygame.draw.rect(win, self.color, (self.origin[0], self.origin[1],
+        pygame.draw.rect(self.win, self.color, (self.origin[0], self.origin[1],
                          self.longueur, self.longueur))
 
     def is_clicked(self, pos):
         x, y = pos
-        x0, y0 = self.x, self.y
+        x0, y0 = self.origin[0], self.origin[1] ##################################
         if (x > x0) and (x < x0 + self.longueur) and (y > y0) and (y < y0 + self.longueur):
             return True
         else:
@@ -96,70 +108,52 @@ class Rectangle(Forme):
     def aire(self):
         return self.longueur * self.longueur
 
+class Triangle(Forme):
+    def __init__(self, win, x, y, color=(127, 127, 127)):
+        self.origin = (x, y)
+        self.color = color  # Default color: grey
 
-class Triangle:
-    def __init__(self, p):
-        self.origin = p
-        self.color = (127, 127, 127)  # Default color: grey
+        self.A = (x, y)
+        self.B = (x + 40, y + 60)
+        self.C = (x - 40, y + 60)
 
-        self.A = p
-        self.B = (p[0] + 40, p[1] + 60)
-        self.C = (p[0] - 40, p[1] + 60)
+        self.win = win
 
-    def set_location(self, p):
-        self.origin = p
-        self.A = p
-        self.B = (p[0] + 40, p[1] + 60)
-        self.C = (p[0] - 40, p[1] + 60)
+    def set_location(self, x, y):
+        self.origin = (x, y)
+        self.A = (x, y)
+        self.B = (x + 40, y + 60)
+        self.C = (x - 40, y + 60)
 
     def update(self):
-        pygame.draw.polygon(win, self.color, [self.A, self.B, self.C])
+        pygame.draw.polygon(self.win, self.color, [self.A, self.B, self.C])
 
-    def is_clicked(self, M):
-        # Calculate cross products to determine if point M is inside the triangle
-        def cross_product(A, B):
-            return A[0] * B[1] - A[1] * B[0]
-
-        def dot_product(A, B):
-            return A[0] * B[0] + A[1] * B[1]
-
-        AB = (self.B[0] - self.A[0], self.B[1] - self.A[1])
-        AC = (self.C[0] - self.A[0], self.C[1] - self.A[1])
-        AM = (M[0] - self.A[0], M[1] - self.A[1])
-
-        BA = (self.A[0] - self.B[0], self.A[1] - self.B[1])
-        BC = (self.C[0] - self.B[0], self.C[1] - self.B[1])
-        BM = (M[0] - self.B[0], M[1] - self.B[1])
-
-        CA = (self.A[0] - self.C[0], self.A[1] - self.C[1])
-        CB = (self.B[0] - self.C[0], self.B[1] - self.C[1])
-        CM = (M[0] - self.C[0], M[1] - self.C[1])
-
-        if dot_product(cross_product(AB, AM), cross_product(AM, AC)) >= 0 and \
-           dot_product(cross_product(BA, BM), cross_product(BM, BC)) >= 0 and \
-           dot_product(cross_product(CA, CM), cross_product(CM, CB)) >= 0:
+    def is_clicked(self, pos):
+        x, y = pos
+        if (x > self.C[0]) and (x < self.B[0]) and (y > self.A[1]) and (y < self.B[1]):
             return True
         else:
             return False
 
-    def perimeter(self):
+    def perimetre(self):
         def distance(A, B):
             return math.sqrt((B[0] - A[0]) ** 2 + (B[1] - A[1]) ** 2)
 
         return distance(self.A, self.B) + distance(self.B, self.C) + distance(self.C, self.A)
 
-    def area(self):
-        s = self.perimeter() / 2
+    def aire(self):
+        s = self.perimetre() / 2
         return math.sqrt(s * (s - distance(self.A, self.B)) * (s - distance(self.B, self.C)) * (s - distance(self.C, self.A)))
 
-
 class Losange(Forme):
-    def __init__(self, x, y):
+    def __init__(self, win, x, y, color = (127, 127, 127)):
         super().__init__(x, y)
         self.A = (x, y)
         self.B = (x + 40, y + 60)
         self.C = (x, y + 120)
         self.D = (x - 40, y + 60)
+        self.win = win
+        self.set_color(color)
 
     def set_location(self, x, y):
         super().set_location(x, y)
@@ -169,7 +163,7 @@ class Losange(Forme):
         self.D = (x - 40, y + 60)
 
     def update(self):
-        pygame.draw.polygon(win, self.color, [self.A, self.B, self.C, self.D])
+        pygame.draw.polygon(self.win, self.color, [self.A, self.B, self.C, self.D])
 
     def is_clicked(self, pos):
         M = pos
@@ -197,222 +191,340 @@ class Losange(Forme):
         aire = s * (s - self.distance(I, J)) * \
             (s - self.distance(J, K)) * (s - self.distance(K, I))
         return math.sqrt(aire)
-
-
+    
 """# States
 INITIAL = 0
 AFFICHER_FORMES = 1
 DEPLACER_FORMES_SELECTION = 2
 DEPLACER_FORMES_DESTINATION = 3
 """
-# Initialize pygame
-pygame.init()
 
-# Window settings
-width, height = 1600, 1200
-win = pygame.display.set_mode((width, height), pygame.RESIZABLE)
-pygame.display.set_caption("Palette multimodale")
+class Agent(IvyServer):
+    def __init__(self, name: str):
+        #Ivy agent
+        IvyServer.__init__(self, "AgentPalette")
+        self.name = name
+        self.start("127.255.255.255:2010")
 
-# Variables
-formes = []  # List of shapes
-mae = FSM.INITIAL  # Finite State Machine
-indice_forme = -1  # Index of the active shape
+        # Initialize pygame
+        pygame.init()
+        # Window settings
+        width, height = 600,300 #1600, 1200
+        self.win = pygame.display.set_mode((width, height), pygame.RESIZABLE)
+        pygame.display.set_caption("Palette multimodale")
 
-# Colors
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
+        self.mae = FSM.INITIAL  # Finite State Machine
+        self.formes : List[Forme] = []  # List of shapes (le type est contraint)
+        self.indice_forme = -1  # Index of the active shape
+
+        # Colors
+        self.WHITE = (255, 255, 255)
+        self.BLACK = (0, 0, 0)
+
+        # Initialize an empty string for command input
+        self.command_input = ""
+
+        self.recieved_message = ""
+
+        self.need_message = True
+
+        self.x = None
+        self.y = None 
+
+        self.mode = ""
+        self.forme = ""
+        self.couleur = ""
+        self.pos = ""
+
+        self.selected_shape = None
+        self.original_position = None
+
+        self.form_deplaced = False
+   
+    def init_vars(self) : 
+        self.recieved_message = ""
+
+        self.x = None
+        self.y = None 
+
+        self.mode = ""
+        self.forme = ""
+        self.couleur = ""
+        self.pos = ""
+
+        self.form_deplaced = False
+
+
+    def run(self) : 
+        while True:
+            pygame.time.delay(100)  # Attente de 100 millisecondes
+
+            if (self.need_message == True) : 
+                self.bind_msg(self.handle_ToDraw_message, '^To draw :(.*)')
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    exit()
+                elif event.type == pygame.KEYDOWN:
+                    x, y = pygame.mouse.get_pos()
+                    if event.key == pygame.K_q:  # Fermer l'application
+                        pygame.quit()
+                        exit()
+                    elif event.key == pygame.K_r:  # Créer un rectangle
+                        f = Rectangle(self.win, x, y)
+                        self.formes.append(f)
+                        self.mae = FSM.AFFICHER_FORMES
+                        print('r pressé')
+                    elif event.key == pygame.K_c:  # Créer un cercle
+                        f = Cercle(self.win, x, y)
+                        self.formes.append(f)
+                        self.mae = FSM.AFFICHER_FORMES
+                        print('c pressé')
+                    elif event.key == pygame.K_t:  # Créer un triangle
+                        f = Triangle(self.win, x, y)
+                        self.formes.append(f)
+                        print('t pressé')
+                        self.mae = FSM.AFFICHER_FORMES
+                    elif event.key == pygame.K_l:  # Créer un losange
+                        f = Losange(self.win, x, y)
+                        self.formes.append(f)
+                        self.mae = FSM.AFFICHER_FORMES
+                        print('l pressé')
+                    elif event.key == pygame.K_m:  # Déplacer la forme sélectionnée
+                        self.mae = FSM.DEPLACER_FORMES_SELECTION
+                        print('m pressé')
+                    elif event.key == pygame.K_s:  # Supprimer la forme sélectionnée
+                        self.mae = FSM.SUPPRIMER_FORME
+                        print('s pressé')
+                    elif event.key == pygame.K_a:  # Modifier la forme sélectionnée
+                        self.mae = FSM.MODIFIER_FORME
+                        print('s pressé')
+
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.button == 1 :  # Clic gauche
+                        if self.mode == "deplacer" and  self.mae == FSM.DEPLACER_FORMES_SELECTION:
+                            for forme in reversed(self.formes):
+                                if forme.is_clicked(event.pos):
+                                    self.selected_shape = forme
+                                    self.original_position = event.pos
+                                    self.mae = FSM.DEPLACER_FORMES_DESTINATION
+                                
+                        elif self.mode == "deplacer" and  self.mae == FSM.DEPLACER_FORMES_DESTINATION: 
+                            if event.type == pygame.MOUSEMOTION and self.selected_shape is not None:
+                                # Mise à jour temporaire de l'emplacement de la forme en fonction du mouvement de la souris
+                                self.selected_shape.set_location(event.pos[0], event.pos[1])
+
+                            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                                # Au deuxième clic, déplacez la forme à la position du clic
+                                self.selected_shape.set_location(event.pos[0], event.pos[1])
+                                self.mae = FSM.AFFICHER_FORMES
+                                self.selected_shape = None
+                                self.original_position = None
+                                self.send_msg('drawn') 
+                                self.init_vars()
+                    
+                        #### Supprimer forme
+                        elif self.mae == FSM.SUPPRIMER_FORME : 
+                            for forme in reversed(self.formes):
+                                if forme.is_clicked(event.pos):
+                                    self.selected_shape = forme
+                                    self.formes.remove(forme)
+                                    self.mae = FSM.AFFICHER_FORMES
+                                    self.send_msg('drawn') 
+                                    self.init_vars()
+                    
+                        ###Changer couleur 
+                        elif self.mae == FSM.SUPPRIMER_FORME :
+                            for forme in reversed(self.formes):
+                                if forme.is_clicked(event.pos):
+                                    forme.set_color(self.couleur)
+                                    self.mae = FSM.AFFICHER_FORMES
+                                    self.send_msg('drawn') 
+                                    self.init_vars()
+
+                        else : 
+                            self.x, self.y = event.pos
+                            print("Clic à la position :", (self.x, self.y))
+                            pos =  f"({self.x}, {self.y})"
+                            pos = pos.replace("(", "").replace(")", "")
+                            self.send_msg("Position :" + pos)
+
+            ## Foncitonnement par messages Ivy  : 
+            if self.mode == "dessiner" : 
+                self.form_drawing(self.forme, self.couleur, self.pos)
+            
+            if self.mode == "deplacer": 
+                print("ON PASSE BIEN DANS DEPLACER")
+                #self.form_deplace()
+                self.mae = FSM.DEPLACER_FORMES_SELECTION
+                self.mode = ""
+
+            if self.mode == "supprimer" : 
+                print("Mode supression")
+                self.mae = FSM.SUPPRIMER_FORME
+                self.mode = ""
+
+            if self.mode == "modifier" : 
+                print("Mode modification")
+                self.mae = FSM.MODIFIER_FORME
+                self.mode = ""
+
+            if self.mae == FSM.INITIAL:
+                self.win.fill(self.WHITE)
+                # Drawing text and other initial state components here
+
+            elif self.mae == FSM.AFFICHER_FORMES:
+                # Display the shapes
+                self.win.fill(self.WHITE)
+                for forme in self.formes:
+                    forme.update()
+
+            elif self.mae == FSM.DEPLACER_FORMES_SELECTION:
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.button == 1:  # Clic gauche
+                        for forme in reversed(self.formes):
+                            if forme.is_clicked(event.pos):
+                                self.selected_shape = forme
+                                self.original_position = event.pos
+                                self.mae = FSM.DEPLACER_FORMES_DESTINATION
+
+            elif self.mae == FSM.DEPLACER_FORMES_DESTINATION:
+                if event.type == pygame.MOUSEMOTION and self.selected_shape is not None:
+                    # Mise à jour temporaire de l'emplacement de la forme en fonction du mouvement de la souris
+                    self.selected_shape.set_location(event.pos[0], event.pos[1])
+
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    # Au deuxième clic, déplacez la forme à la position du clic
+                    self.selected_shape.set_location(event.pos[0], event.pos[1])
+                    self.mae = FSM.AFFICHER_FORMES
+                    self.selected_shape = None
+                    self.original_position = None
+                    self.form_deplaced = True
+                    self.mae = FSM.AFFICHER_FORMES
+                    self.send_msg('drawn') 
+                    self.init_vars()
+ 
+
+            elif self.mae == FSM.SUPPRIMER_FORME : 
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.button == 1:  # Clic gauche
+                        for forme in reversed(self.formes):
+                            if forme.is_clicked(event.pos):
+                                self.selected_shape = forme
+                                self.formes.remove(forme)
+                                self.mae = FSM.AFFICHER_FORMES
+                                self.send_msg('drawn') 
+                                self.init_vars()
+
+
+            elif self.mae == FSM.MODIFIER_FORME : 
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.button == 1:  # Clic gauche
+                        for forme in reversed(self.formes):
+                            if forme.is_clicked(event.pos):
+                                forme.set_color(self.couleur)
+                                self.mae = FSM.AFFICHER_FORMES
+                                self.send_msg('drawn') 
+                                self.init_vars()
+                                
+
+            print("State : ", self.mae)
+            print("Listre de formes :", self.formes)
+            pygame.display.update()
+
+    def handle_ToDraw_message(self, agent, *args) :
+        couleur = "" 
+        print("Message reçu :", args)
+        self.recieved_message = args
+        self.recieved_message = ''.join(args)
+        print(type(self.recieved_message))
+        print("Message traite :", args)
+        if "deplacer" in self.recieved_message : 
+            self.mode = "deplacer"
+        elif "supprimer" in self.recieved_message : 
+            self.mode = "supprimer"
+        elif "modifier" in self.recieved_message : 
+            self.mode = "modifier"
+            couleur = self.recieved_message.replace("modifier", "")
+            print("couleur en lettres : ", couleur)
+            couleur = self.recieved_message.replace(" ", "")
+            print("couleur sans espaces")
+            translator = Translator()
+            translated = translator.translate(couleur, src= 'fr', dest='en')
+            couleur =colors.to_rgb(translated.text )
+            self.color = tuple(int(x * 255) for x in self.color) 
+            print("Couleur de modification :", self.color)
+
+        else : 
+            self.mode, self.forme, self.couleur, self.pos = self.recieved_message.split()
+
+    def form_drawing (self, form, color, pos):
+        #Couleur 
+        translator = Translator()
+        translated = translator.translate(color, src= 'fr', dest='en')
+        color_rgb =colors.to_rgb(translated.text )
+        color_rgb = tuple(int(x * 255) for x in color_rgb) 
+
+        #Position
+        if "aleat" in self.pos :
+            # Définir les plages pour x et y
+            min_x, max_x = 0, 600  # Exemple : plage de 0 à 800 pour x
+            min_y, max_y = 0, 300  # Exemple : plage de 0 à 600 pour y
+
+            # Générer des coordonnées aléatoires
+            x_aleatoire = random.randint(min_x, max_x)
+            y_aleatoire = random.randint(min_y, max_y)
+
+            self.pos = (x_aleatoire , y_aleatoire) 
+            (self.x, self.y) = (x_aleatoire , y_aleatoire) 
+            print("Pos aleat :", self.pos)
+        else : 
+            parties = pos.split(',')
+            (self.x, self.y)  = tuple(map(int, parties))
+
+        #Forme
+        if form == "rectangle" : 
+            f = Rectangle(self.win, self.x, self.y, color_rgb)
+            self.formes.append(f)
+            self.mae = FSM.AFFICHER_FORMES
+            print('Rectangle dessiné')
+        elif form == "cercle": 
+            f = Cercle(self.win, self.x, self.y, color_rgb)
+            self.formes.append(f)
+            self.mae = FSM.AFFICHER_FORMES
+            print('Cercle dessiné')
+        elif form == "losange" : 
+            f = Losange(self.win, self.x, self.y, color_rgb)
+            self.formes.append(f)
+            self.mae = FSM.AFFICHER_FORMES
+            print('Losange dessiné')
+
+        elif form == "triangle" : 
+            f = Triangle(self.win, self.x, self.y, color_rgb)
+            self.formes.append(f)
+            print('Triangle dessiné')
+            self.mae = FSM.AFFICHER_FORMES
+
+        self.send_msg('drawn') 
+        self.init_vars()
+    
+    def form_deplace (self): 
+        print("ON RENTRE DANS DEPLACEMENT") 
+        self.mae = FSM.DEPLACER_FORMES_SELECTION
+        if self.form_deplaced : 
+            print('Forme Deplacee')
+            self.send_msg('drawn') 
+            self.init_vars()
 
 
 # Helper function for distance calculation
 
-
 def distance(A, B):
     return math.sqrt((B[0] - A[0]) ** 2 + (B[1] - A[1]) ** 2)
 
-
-# Initialize an empty string for command input
-command_input = ""
-
-"""while True:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            exit()
-        elif event.type == pygame.KEYDOWN:
-            # Capture the pressed keys and add them to the command_input string
-            if event.unicode.isalpha() or event.unicode.isspace() and event.key != pygame.K_RETURN:
-                command_input += event.unicode
-
-            elif event.key == pygame.K_BACKSPACE:
-                command_input = command_input[:-1]
-
-            elif event.key == pygame.K_RETURN:  # Enter key
-
-                x, y = pygame.mouse.get_pos()
-                print
-                # Process the complete command_input string
-                if command_input == "draw rectangle here":
-                    f = Rectangle(x, y)
-                    formes.append(f)
-                    current_state = FSM.AFFICHER_FORMES
-                    print('Rectangle drawn')
-                elif command_input == "draw circle here":
-                    f = Cercle(x, y)
-                    formes.append(f)
-                    current_state = FSM.AFFICHER_FORMES
-                    print('Circle drawn')
-                elif command_input == "draw triangle here":
-                    f = Triangle((x, y))
-                    formes.append(f)
-                    current_state = FSM.AFFICHER_FORMES
-                    print('Triangle drawn')
-                elif command_input == "draw losange here":
-                    f = Losange(x, y)
-                    formes.append(f)
-                    current_state = FSM.AFFICHER_FORMES
-                    print('Losange drawn')
-                mae = current_state
-                # Clear the command_input string
-                command_input = ""
-
-    if mae == FSM.INITIAL:
-        win.fill(WHITE)
-        # Drawing text and other initial state components here
-
-    elif mae == FSM.AFFICHER_FORMES:
-        # Display the shapes
-        win.fill(WHITE)
-        for forme in formes:
-            forme.update()
-
-    elif mae == FSM.DEPLACER_FORMES_SELECTION:
-        # Code for moving the selected shape
-        pass
-
-    elif mae == FSM.DEPLACER_FORMES_DESTINATION:
-        # Code for destination of the shape
-        pass
-
-    pygame.display.update()
-"""
-
-while True:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            exit()
-        elif event.type == pygame.KEYDOWN:
-            x, y = pygame.mouse.get_pos()
-            if event.key == pygame.K_r:  # Create Rectangle
-                f = Rectangle(x, y)
-                formes.append(f)
-                current_state = FSM.AFFICHER_FORMES
-                print('r pressed')
-            elif event.key == pygame.K_c:  # Create Circle
-                f = Cercle(x, y)
-                formes.append(f)
-                current_state = FSM.AFFICHER_FORMES
-                print('c pressed')
-            elif event.key == pygame.K_t:  # Create Triangle
-                f = Triangle((x, y))
-                formes.append(f)
-                print('t pressed')
-                current_state = FSM.AFFICHER_FORMES
-            elif event.key == pygame.K_l:  # Create Losange
-                f = Losange(x, y)
-                formes.append(f)
-                current_state = FSM.AFFICHER_FORMES
-                print('l pressed')
-            elif event.key == pygame.K_m:  # Move Shape
-                current_state = FSM.DEPLACER_FORMES_SELECTION
-                print('m pressed')
-            mae = current_state
-
-    if mae == FSM.INITIAL:
-        win.fill(WHITE)
-        # Drawing text and other initial state components here
-
-    elif mae == FSM.AFFICHER_FORMES:
-        # Display the shapes
-        win.fill(WHITE)
-        for forme in formes:
-            forme.update()
-
-    elif mae == FSM.DEPLACER_FORMES_SELECTION:
-        # Code for moving the selected shape
-        pass
-
-    elif mae == FSM.DEPLACER_FORMES_DESTINATION:
-        # Code for destination of the shape
-        pass
-
-    pygame.display.update()
-
-
-last_time_checked = 0
-check_interval = 1  # in seconds
-
-
-def get_command():
-    """Gets the command from the user
-
-    Returns:
-        string: string depicting the form to be drawn with the color
-    """
-    time.sleep(3)
-    return "draw rectangle here"
-
-
-"""while True:
-    current_time = time.time()
-
-    if current_time - last_time_checked > check_interval:
-        last_time_checked = time.time()
-        command_input = get_command()
-        x, y = pygame.mouse.get_pos()
-
-        # Process the complete command_input string
-        if command_input == "draw rectangle here":
-            f = Rectangle(x, y)
-            formes.append(f)
-            current_state = FSM.AFFICHER_FORMES
-            print('Rectangle drawn')
-        elif command_input == "draw circle here":
-            f = Cercle(x, y)
-            formes.append(f)
-            current_state = FSM.AFFICHER_FORMES
-            print('Circle drawn')
-        elif command_input == "draw triangle here":
-            f = Triangle((x, y))
-            formes.append(f)
-            current_state = FSM.AFFICHER_FORMES
-            print('Triangle drawn')
-        elif command_input == "draw losange here":
-            f = Losange(x, y)
-            formes.append(f)
-            current_state = FSM.AFFICHER_FORMES
-            print('Losange drawn')
-        mae = current_state
-        # Clear the command_input string
-        command_input = ""
-
-    if mae == FSM.INITIAL:
-        win.fill(WHITE)
-        # Drawing text and other initial state components here
-
-    elif mae == FSM.AFFICHER_FORMES:
-        # Display the shapes
-        win.fill(WHITE)
-        for forme in formes:
-            forme.update()
-
-    elif mae == FSM.DEPLACER_FORMES_SELECTION:
-        # Code for moving the selected shape
-        pass
-
-    elif mae == FSM.DEPLACER_FORMES_DESTINATION:
-        # Code for destination of the shape
-        pass
-
-    pygame.display.update()
-"""
+if __name__ == "__main__":
+    agent = Agent("Palette")
+    agent.run()
+    
+    
